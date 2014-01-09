@@ -339,4 +339,51 @@ public class SystemUtils
 		ois.close();
 		return obj;
 	}
+
+	/**
+	 * Open the specified URL with the system default browser.
+	 * 
+	 * @param url
+	 *            the URL to open
+	 * @return <code>true</code> if the command is successfully sent to the
+	 *         system, otherwise, <code>false</code>
+	 */
+	public static boolean openByBrower(String url)
+	{
+		Runtime run = Runtime.getRuntime();
+		if (null == url || "".equals(url))
+			return false;
+		try
+		{
+			// Open the URL according the current system.
+			final String OS_NAME = System.getProperty("os.name").toLowerCase();
+			if (OS_NAME.indexOf("win") > -1)
+				run.exec("rundll32.exe url.dll,FileProtocolHandler " + url);
+			else if (OS_NAME.indexOf("mac") > -1)
+				run.exec("open " + url);
+			else if (OS_NAME.indexOf("nux") > -1 || OS_NAME.indexOf("nix") > -1)
+			{
+				String[] cmd = new String[2];
+				cmd[0] = "firefox";
+				cmd[1] = url;
+				try
+				{
+					run.exec(cmd);
+				}
+				catch (IOException e)
+				{
+					cmd[0] = "xdg-open";
+					run.exec(cmd);
+				}
+			}
+			else
+				return false;
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+			return false;
+		}
+		return true;
+	}
 }
