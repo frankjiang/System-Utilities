@@ -277,6 +277,38 @@ public class SystemUtils
 	}
 
 	/**
+	 * Read the specified file and returns the file content with default
+	 * character set.
+	 * 
+	 * @param filename
+	 *            the filename of the specified file
+	 * @return the file content
+	 * @throws IOException
+	 *             if an IO error occurs
+	 */
+	public static String read(String filename) throws IOException
+	{
+		return read(new File(filename), Charset.defaultCharset(), 8192);
+	}
+
+	/**
+	 * Read the specified file and fill the content to the specified appendable
+	 * with default character set.
+	 * 
+	 * @param filename
+	 *            the name of the file to read
+	 * @param appendable
+	 *            the appendable to append
+	 * @throws IOException
+	 *             if an IO error occurs
+	 */
+	public static void read(String filename, Appendable appendable)
+			throws IOException
+	{
+		read(filename, Charset.defaultCharset(), appendable, 8192);
+	}
+
+	/**
 	 * Read and returns the content of the input stream.
 	 * <p>
 	 * The input stream will be read to the end and will be closed after read.
