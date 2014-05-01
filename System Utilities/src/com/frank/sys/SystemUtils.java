@@ -12,6 +12,7 @@ import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -23,6 +24,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -280,6 +282,21 @@ public class SystemUtils
 	 * Read the specified file and returns the file content with default
 	 * character set.
 	 * 
+	 * @param file
+	 *            the specified file
+	 * @return the file content
+	 * @throws IOException
+	 *             if an IO error occurs
+	 */
+	public static String read(File file) throws IOException
+	{
+		return read(file, Charset.defaultCharset(), 8192);
+	}
+
+	/**
+	 * Read the specified file and returns the file content with default
+	 * character set.
+	 * 
 	 * @param filename
 	 *            the filename of the specified file
 	 * @return the file content
@@ -309,28 +326,123 @@ public class SystemUtils
 	}
 
 	/**
-	 * Read and returns the content of the input stream.
-	 * <p>
-	 * The input stream will be read to the end and will be closed after read.
-	 * </p>
+	 * Read raw byte data from the specified input stream.
 	 * 
 	 * @param in
-	 *            the input stream to read
-	 * @param cs
-	 *            the character set of the input stream, <code>null</code> if
-	 *            use environment character set
-	 * @param capacity
-	 *            the capacity of the buffer
-	 * @return the file content
+	 *            the specified input stream
+	 * @param size
+	 *            the size of the buffer
+	 * @return the raw byte data
 	 * @throws IOException
-	 *             if an IO error occurs
+	 *             if any IO error occurs
 	 */
-	public static String readString(InputStream in, Charset cs,
-			Appendable appendable, int capacity) throws IOException
+	public static byte[] readRawBytes(InputStream in, int size)
+			throws IOException
 	{
-		StringBuilder sb = new StringBuilder();
-		read(in, cs, appendable, capacity);
-		return sb.toString();
+		ArrayList<Byte> list = new ArrayList<Byte>();
+		BufferedInputStream bis = new BufferedInputStream(in, size);
+		byte[] b = new byte[size];
+		int r = 0, i;
+		while (r > -1)
+		{
+			for (i = 0; i < r; i++)
+				list.add(b[i]);
+			r = bis.read(b);
+		}
+		byte[] a = new byte[list.size()];
+		i = 0;
+		for (Byte e : list)
+			a[i++] = e;
+		return a;
+	}
+
+	/**
+	 * Read raw byte data from the specified file.
+	 * 
+	 * @param file
+	 *            the specified file
+	 * @param size
+	 *            the size of the buffer
+	 * @return the raw byte data
+	 * @throws IOException
+	 *             if any IO error occurs
+	 */
+	public static byte[] readRawBytes(File file, int size) throws IOException
+	{
+		return readRawBytes(new FileInputStream(file), size);
+	}
+
+	/**
+	 * Read raw byte data from the specified file.
+	 * 
+	 * @param filename
+	 *            name of the specified file
+	 * @param size
+	 *            the size of the buffer
+	 * @return the raw byte data
+	 * @throws IOException
+	 *             if any IO error occurs
+	 */
+	public static byte[] readRawBytes(String filename, int size)
+			throws IOException
+	{
+		return readRawBytes(new FileInputStream(filename), size);
+	}
+
+	/**
+	 * Read raw byte data from the specified input stream.
+	 * 
+	 * @param in
+	 *            the specified input stream
+	 * @return the raw byte data
+	 * @throws IOException
+	 *             if any IO error occurs
+	 */
+	public static byte[] readRawBytes(InputStream in) throws IOException
+	{
+		ArrayList<Byte> list = new ArrayList<Byte>();
+		BufferedInputStream bis = new BufferedInputStream(in, 8192);
+		byte[] b = new byte[8192];
+		int r = 0, i;
+		while (r > -1)
+		{
+			for (i = 0; i < r; i++)
+				list.add(b[i]);
+			r = bis.read(b);
+		}
+		byte[] a = new byte[list.size()];
+		i = 0;
+		for (Byte e : list)
+			a[i++] = e;
+		return a;
+	}
+
+	/**
+	 * Read raw byte data from the specified file.
+	 * 
+	 * @param file
+	 *            the specified file
+	 * @return the raw byte data
+	 * @throws IOException
+	 *             if any IO error occurs
+	 */
+	public static byte[] readRawBytes(File file) throws IOException
+	{
+		return readRawBytes(file, 8192);
+	}
+
+	/**
+	 * Read raw byte data from the specified file.
+	 * 
+	 * @param filename
+	 *            name of the specified file
+	 * @return the raw byte data
+	 * @throws IOException
+	 *             if any IO error occurs
+	 */
+	public static byte[] readRawBytes(String filename) throws IOException
+	{
+		return readRawBytes(filename, 8192);
 	}
 
 	/**
@@ -418,7 +530,7 @@ public class SystemUtils
 		}
 		return true;
 	}
-	
+
 	/**
 	 * Returns the file separator of the current system.
 	 * 
