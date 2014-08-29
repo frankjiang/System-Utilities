@@ -53,14 +53,14 @@ public class TestUtils
 
 		/**
 		 * Returns the time spent according to the system clock. The time spent
-		 * value will be in the default time unit - nanosecond
-		 * {@linkplain TimeUnit#NANOSECONDS}.
+		 * value will be in the default time unit - milliseconds
+		 * {@linkplain TimeUnit#MILLISECONDS}.
 		 * 
 		 * @return the time spent
 		 */
 		public long getTime()
 		{
-			return getTime(sourceUnit);
+			return getTime(TimeUnit.MILLISECONDS);
 		}
 
 		/**
