@@ -125,6 +125,11 @@ public abstract class Task implements Runnable
 	abstract protected void taskStopped() throws Throwable;
 
 	/**
+	 * The action when the task is forced to stop.
+	 */
+	abstract protected void taskForcedStop();
+
+	/**
 	 * @see java.lang.Runnable#run()
 	 */
 	@Override
@@ -209,5 +214,13 @@ public abstract class Task implements Runnable
 			pause();
 			break;
 		}
+	}
+
+	/**
+	 * Teriminate the current task.
+	 */
+	public void terminate()
+	{
+		status = Status.Stop;
 	}
 }
