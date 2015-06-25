@@ -82,7 +82,7 @@ public class TestUtils
 		public void display()
 		{
 			System.out.printf("TIME = %d %s\n", getTime(),
-					sourceUnit.toString());
+					TimeUnit.MILLISECONDS.toString());
 		}
 
 		/**

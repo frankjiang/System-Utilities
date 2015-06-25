@@ -5,14 +5,24 @@
  */
 package com.frank.sys;
 
+import java.awt.Graphics;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
 import java.awt.Image;
 import java.awt.Toolkit;
+import java.awt.Transparency;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
@@ -26,6 +36,10 @@ import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
+
+import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageOutputStream;
+import javax.swing.ImageIcon;
 
 /**
  * The system utilities.
@@ -41,7 +55,11 @@ public class SystemUtils
 	 * 8192 is always used in all kinds of IO affairs.
 	 * </p>
 	 */
-	public static final int	BUFFER_SIZE	= 8192;
+	public static final int		BUFFER_SIZE	= 8192;
+	/**
+	 * The header of BASE64 image.
+	 */
+	public static final String	BASE64IMAGE	= "base64image:";
 
 	/**
 	 * Returns the texts in the system clip board.
@@ -58,8 +76,7 @@ public class SystemUtils
 			if (clipTf.isDataFlavorSupported(DataFlavor.stringFlavor))
 				try
 				{
-					ret = (String) clipTf
-							.getTransferData(DataFlavor.stringFlavor);
+					ret = (String) clipTf.getTransferData(DataFlavor.stringFlavor);
 				}
 				catch (Exception e)
 				{
@@ -87,24 +104,130 @@ public class SystemUtils
 	 * @return the image
 	 * @throws Exception
 	 */
+	@SuppressWarnings("restriction")
 	public static Image getImageFromClipboard() throws Exception
 	{
+		String osname = System.getProperties().getProperty("os.name").toLowerCase();
+		if (osname.startsWith("mac"))
+			;
 		Clipboard sysc = Toolkit.getDefaultToolkit().getSystemClipboard();
 		Transferable cc = sysc.getContents(null);
 		if (cc == null)
 			return null;
 		else if (cc.isDataFlavorSupported(DataFlavor.imageFlavor))
 			return (Image) cc.getTransferData(DataFlavor.imageFlavor);
+		else if (cc.isDataFlavorSupported(DataFlavor.getTextPlainUnicodeFlavor()))
+		{
+			String code = (String) cc.getTransferData(DataFlavor.getTextPlainUnicodeFlavor());
+			if (code.startsWith("base64image:"))
+			{
+				code = code.substring(BASE64IMAGE.length(), code.length());
+				sun.misc.BASE64Decoder decoder = new sun.misc.BASE64Decoder();
+				byte[] bytes = decoder.decodeBuffer(code);
+				return ImageIO.read(new ByteArrayInputStream(bytes));
+			}
+		}
 		return null;
 	}
 
 	/**
-	 * Write the specified image to system clip board.
+	 * Translate the {@link java.awt.Image Image} to
+	 * {@link java.awt.image.BufferedImage BufferedImage}.
 	 * 
 	 * @param image
-	 *            the specified image to write
+	 *            the {@link java.awt.Image Image} instance.
+	 * @return {@link java.awt.image.BufferedImage BufferedImage} instance
 	 */
-	public static void setClipboardImage(final Image image)
+	public static BufferedImage toBufferedImage(Image image)
+	{
+		if (image instanceof BufferedImage)
+			return (BufferedImage) image;
+		// This code ensures that all the pixels in the image are loaded
+		image = new ImageIcon(image).getImage();
+		// Determine if the image has transparent pixels; for this method's
+		// implementation, see e661 Determining If an Image Has Transparent Pixels
+		// boolean hasAlpha = hasAlpha(image);
+		// Create a buffered image with a format that's compatible with the screen
+		BufferedImage bimage = null;
+		GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+		try
+		{
+			// Determine the type of transparency of the new buffered image
+			int transparency = Transparency.OPAQUE;
+			/*
+			 * if (hasAlpha) {
+			 * transparency = Transparency.BITMASK;
+			 * }
+			 */
+			// Create the buffered image
+			GraphicsDevice gs = ge.getDefaultScreenDevice();
+			GraphicsConfiguration gc = gs.getDefaultConfiguration();
+			bimage = gc.createCompatibleImage(image.getWidth(null), image.getHeight(null), transparency);
+		}
+		catch (HeadlessException e)
+		{
+			// The system does not have a screen
+		}
+		if (bimage == null)
+		{
+			// Create a buffered image using the default color model
+			int type = BufferedImage.TYPE_INT_RGB;
+			//int type = BufferedImage.TYPE_3BYTE_BGR;//by wang
+			/*
+			 * if (hasAlpha) {
+			 * type = BufferedImage.TYPE_INT_ARGB;
+			 * }
+			 */
+			bimage = new BufferedImage(image.getWidth(null), image.getHeight(null), type);
+		}
+		// Copy image to buffered image
+		Graphics g = bimage.createGraphics();
+		// Paint the image onto the buffered image
+		g.drawImage(image, 0, 0, null);
+		g.dispose();
+		return bimage;
+	}
+
+	@SuppressWarnings("restriction")
+	private static void setClipboardImageMac(Image image) throws IOException
+	{
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
+		if (image instanceof RenderedImage)
+			ImageIO.write((RenderedImage) image, "png", ios);
+		else
+			ImageIO.write(toBufferedImage(image), "png", ios);
+		ios.flush();
+		ios.close();
+		byte[] bytes = baos.toByteArray();
+		sun.misc.BASE64Encoder encoder = new sun.misc.BASE64Encoder();
+		final String code = encoder.encode(bytes);
+		Transferable trans = new Transferable()
+		{
+			private String	base64code	= "base64image:" + code;
+			private DataFlavor flavor = DataFlavor.stringFlavor;//DataFlavor.getTextPlainUnicodeFlavor();
+
+			public DataFlavor[] getTransferDataFlavors()
+			{
+				return new DataFlavor[] { flavor };
+			}
+
+			public boolean isDataFlavorSupported(DataFlavor flavor)
+			{
+				return this.flavor.equals(flavor);
+			}
+
+			public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException
+			{
+				if (isDataFlavorSupported(flavor))
+					return base64code;
+				throw new UnsupportedFlavorException(flavor);
+			}
+		};
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(trans, null);
+	}
+
+	private static void setClipboardImageWindows(final Image image)
 	{
 		Transferable trans = new Transferable()
 		{
@@ -118,16 +241,36 @@ public class SystemUtils
 				return DataFlavor.imageFlavor.equals(flavor);
 			}
 
-			public Object getTransferData(DataFlavor flavor)
-					throws UnsupportedFlavorException, IOException
+			public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException
 			{
 				if (isDataFlavorSupported(flavor))
 					return image;
 				throw new UnsupportedFlavorException(flavor);
 			}
 		};
-		Toolkit.getDefaultToolkit().getSystemClipboard()
-				.setContents(trans, null);
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(trans, null);
+	}
+
+	/**
+	 * Write the specified image to system clip board.
+	 * 
+	 * @param image
+	 *            the specified image to write
+	 */
+	public static void setClipboardImage(final Image image)
+	{
+		String osname = System.getProperties().getProperty("os.name").toLowerCase();
+		if (osname.startsWith("mac"))
+			try
+			{
+				setClipboardImageMac(image);
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException(e.getLocalizedMessage(), e);
+			}
+		else
+			setClipboardImageWindows(image);
 	}
 
 	/**
@@ -142,8 +285,7 @@ public class SystemUtils
 	 *            the specified file filter, if <tt>null</tt> than accept all
 	 *            the file types.
 	 */
-	public static void loadFiles(Collection<File> files, File file,
-			FileFilter filter)
+	public static void loadFiles(Collection<File> files, File file, FileFilter filter)
 	{
 		if (file.isDirectory())
 		{
@@ -174,11 +316,9 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static void read(InputStream in, Charset cs, Appendable appendable,
-			int capacity) throws IOException
+	public static void read(InputStream in, Charset cs, Appendable appendable, int capacity) throws IOException
 	{
-		InputStreamReader isr = new InputStreamReader(in,
-				cs == null ? Charset.defaultCharset() : cs);
+		InputStreamReader isr = new InputStreamReader(in, cs == null ? Charset.defaultCharset() : cs);
 		CharBuffer cbuf = CharBuffer.allocate(capacity);
 		int r = 0;
 		while (r > -1)
@@ -205,8 +345,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static void read(File file, Charset cs, Appendable appendable,
-			int capacity) throws IOException
+	public static void read(File file, Charset cs, Appendable appendable, int capacity) throws IOException
 	{
 		read(new java.io.FileInputStream(file), cs, appendable, capacity);
 	}
@@ -226,8 +365,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static void read(String filename, Charset cs, Appendable appendable,
-			int capacity) throws IOException
+	public static void read(String filename, Charset cs, Appendable appendable, int capacity) throws IOException
 	{
 		read(new java.io.FileInputStream(filename), cs, appendable, capacity);
 	}
@@ -248,8 +386,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static String read(String filename, Charset cs, int capacity)
-			throws IOException
+	public static String read(String filename, Charset cs, int capacity) throws IOException
 	{
 		StringBuilder sb = new StringBuilder();
 		read(filename, cs, sb, capacity);
@@ -270,8 +407,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static String read(File file, Charset cs, int capacity)
-			throws IOException
+	public static String read(File file, Charset cs, int capacity) throws IOException
 	{
 		StringBuilder sb = new StringBuilder();
 		read(file, cs, sb, capacity);
@@ -319,8 +455,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if an IO error occurs
 	 */
-	public static void read(String filename, Appendable appendable)
-			throws IOException
+	public static void read(String filename, Appendable appendable) throws IOException
 	{
 		read(filename, Charset.defaultCharset(), appendable, 8192);
 	}
@@ -336,8 +471,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if any IO error occurs
 	 */
-	public static byte[] readRawBytes(InputStream in, int size)
-			throws IOException
+	public static byte[] readRawBytes(InputStream in, int size) throws IOException
 	{
 		ArrayList<Byte> list = new ArrayList<Byte>();
 		BufferedInputStream bis = new BufferedInputStream(in, size);
@@ -383,8 +517,7 @@ public class SystemUtils
 	 * @throws IOException
 	 *             if any IO error occurs
 	 */
-	public static byte[] readRawBytes(String filename, int size)
-			throws IOException
+	public static byte[] readRawBytes(String filename, int size) throws IOException
 	{
 		return readRawBytes(new FileInputStream(filename), size);
 	}
@@ -458,8 +591,7 @@ public class SystemUtils
 	public static void writeObject(File file, Object obj) throws IOException
 	{
 		createFileIfNotExist(file);
-		ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(
-				file));
+		ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(file));
 		oos.writeObject(obj);
 		oos.close();
 	}
@@ -475,8 +607,7 @@ public class SystemUtils
 	 * @throws ClassNotFoundException
 	 *             if the class is not found
 	 */
-	public static Object readObject(File file) throws IOException,
-			ClassNotFoundException
+	public static Object readObject(File file) throws IOException, ClassNotFoundException
 	{
 		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));
 		Object obj = ois.readObject();
