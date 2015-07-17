@@ -37,6 +37,7 @@ public class SuffixFilter implements FilenameFilter
 	{
 		if (suffix.length == 0)
 			throw new IllegalArgumentException("The suffix is not specified!");
+		this.suffix = suffix;
 	}
 
 	/**
